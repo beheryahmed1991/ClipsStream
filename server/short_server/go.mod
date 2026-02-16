@@ -4,7 +4,8 @@ go 1.25.6
 
 require (
 	github.com/danielgtaylor/huma/v2 v2.35.0
-	github.com/go-chi/chi/v5 v5.2.2
+	github.com/gin-gonic/gin v1.10.0
+	go.mongodb.org/mongo-driver/v2 v2.5.0
 )
 
 require (
@@ -14,7 +15,6 @@ require (
 	github.com/fxamacker/cbor/v2 v2.8.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.9 // indirect
 	github.com/gin-contrib/sse v1.1.0 // indirect
-	github.com/gin-gonic/gin v1.10.0 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.26.0 // indirect
