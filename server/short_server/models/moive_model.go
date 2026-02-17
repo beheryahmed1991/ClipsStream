@@ -1,4 +1,4 @@
-package movie_model
+package model
 
 import "go.mongodb.org/mongo-driver/v2/bson"
 
