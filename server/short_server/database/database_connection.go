@@ -27,12 +27,20 @@ var (
 	}
 )
 
+// LoadEnv loads environment variables from a ".env" file.
+// It logs a warning if the file cannot be read but does not stop execution.
 func LoadEnv() {
 	if err := godotenv.Load(".env"); err != nil {
 		log.Printf("warning: .env file not loaded: %v", err)
 	}
 }
 
+// InstanceDB initializes and returns the package-level singleton MongoDB client.
+//
+// On the first call, it loads environment variables, reads MONGODB_URI, creates a client,
+// and verifies connectivity with a 10-second ping; any initialization error is recorded
+// and returned on this and subsequent calls. Subsequent calls return the same client
+// instance and the stored initialization error, if any.
 func InstanceDB() (*mongo.Client, error) {
 	clientOnce.Do(func() {
 		LoadEnv()
@@ -60,6 +68,10 @@ func InstanceDB() (*mongo.Client, error) {
 	return client, clientErr
 }
 
+// OpenCollection obtains a MongoDB collection handle for the named collection from the
+// database specified by the DATABASE_NAME environment variable.
+// It returns an error if collectionName is empty, if DATABASE_NAME is not set, or if
+// obtaining the MongoDB client via InstanceDB fails.
 func OpenCollection(collectionName string) (*mongo.Collection, error) {
 	if collectionName == "" {
 		return nil, errors.New("collectionName is required")
@@ -79,6 +91,8 @@ func OpenCollection(collectionName string) (*mongo.Collection, error) {
 	return dbClient.Database(databaseName).Collection(collectionName), nil
 }
 
+// Disconnect closes the global MongoDB client if one has been initialized.
+// It returns any error produced by the client's Disconnect call.
 func Disconnect(ctx context.Context) error {
 	if client == nil {
 		return nil
