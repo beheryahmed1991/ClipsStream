@@ -36,8 +36,7 @@ type (
 		Body model.Movie
 	}
 	AddMovieOutput struct {
-		Status int         `json:"-"`
-		Body   model.Movie `json:"body"`
+		Body model.Movie `json:"body"`
 	}
 )
 
@@ -53,14 +52,15 @@ func RegisterMovRoutes(api huma.API) {
 		Method:      "GET",
 		Path:        "/movies/{id}",
 		Summary:     "Get one movie by ID",
-		Errors:      []int{400, 404},
+		Errors:      []int{400, 404, 500},
 	}, GetMovie)
 	huma.Register(api, huma.Operation{
-		OperationID: "add-movie",
-		Method:      "POST",
-		Path:        "/addmovies",
-		Summary:     "Add one movie",
-		Errors:      []int{400, 500},
+		OperationID:   "add-movie",
+		Method:        "POST",
+		Path:          "/addmovies",
+		Summary:       "Add one movie",
+		DefaultStatus: http.StatusCreated,
+		Errors:        []int{400, 500},
 	}, AddMovie)
 }
 
@@ -123,6 +123,14 @@ func GetMovie(ctx context.Context, in *GetMovieInput) (*GetMovieOutput, error) {
 // function to add moive
 func AddMovie(ctx context.Context, in *AddMovieInput) (*AddMovieOutput, error) {
 	if err := validate.Struct(in.Body); err != nil {
+		var ve validator.ValidationErrors
+		if errors.As(err, &ve) {
+			details := make([]error, len(ve))
+			for i, fe := range ve {
+				details[i] = fmt.Errorf("field '%s' failed '%s'", fe.Field(), fe.Tag())
+			}
+			return nil, huma.Error400BadRequest("validation failed", details...)
+		}
 		return nil, huma.Error400BadRequest("validation failed")
 	}
 	col, err := getMovieCol()
@@ -137,12 +145,11 @@ func AddMovie(ctx context.Context, in *AddMovieInput) (*AddMovieOutput, error) {
 	movie.ID = bson.NewObjectID()
 
 	if _, err := col.InsertOne(qctx, movie); err != nil {
-
+		slog.Error("insert movie failed", "op", "AddMovie", "err", err)
 		return nil, fmt.Errorf("insert movie: %w", err)
 	}
 	return &AddMovieOutput{
-		Status: http.StatusCreated,
-		Body:   movie,
+		Body: movie,
 	}, nil
 
 }
