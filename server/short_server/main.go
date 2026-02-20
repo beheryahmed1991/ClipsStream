@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"os"
 
 	"github.com/beheryahmed1991/ClipsStream/server/short_server/controllers"
@@ -21,8 +21,10 @@ type HelloOutput struct {
 
 // main initializes a Gin router, configures Huma under the /api group with a GET /hello endpoint that returns {"message":"hello"}, and starts the HTTP server on :8080, logging and exiting with status 1 if startup fails.
 func main() {
-	// r:=gin.Default()
 	gin.SetMode(gin.ReleaseMode)
+	// r:=gin.Default()
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
 
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
@@ -42,8 +44,9 @@ func main() {
 		return out, nil
 	})
 	controllers.RegisterMovRoutes(api)
+	slog.Info("server starting", "addr", ":8080")
 	if err := r.Run(":8080"); err != nil {
-		log.Printf("server failed to start: %v", err)
+		slog.Error("server failed to start", "err", err)
 		os.Exit(1)
 	}
 }

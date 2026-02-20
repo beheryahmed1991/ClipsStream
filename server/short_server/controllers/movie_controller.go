@@ -5,13 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"time"
 
 	"github.com/beheryahmed1991/ClipsStream/server/short_server/database"
 	model "github.com/beheryahmed1991/ClipsStream/server/short_server/models"
 	"github.com/danielgtaylor/huma/v2"
-
-	//"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -31,6 +30,15 @@ type (
 	GetMovieInput struct {
 		ID string `path:"id"`
 	}
+
+	// for post
+	AddMovieInput struct {
+		Body model.Movie
+	}
+	AddMovieOutput struct {
+		Status int         `json:"-"`
+		Body   model.Movie `json:"body"`
+	}
 )
 
 var (
@@ -47,6 +55,13 @@ func RegisterMovRoutes(api huma.API) {
 		Summary:     "Get one movie by ID",
 		Errors:      []int{400, 404},
 	}, GetMovie)
+	huma.Register(api, huma.Operation{
+		OperationID: "add-movie",
+		Method:      "POST",
+		Path:        "/addmovies",
+		Summary:     "Add one movie",
+		Errors:      []int{400, 500},
+	}, AddMovie)
 }
 
 func getMovieCol() (*mongo.Collection, error) {
@@ -106,7 +121,28 @@ func GetMovie(ctx context.Context, in *GetMovieInput) (*GetMovieOutput, error) {
 }
 
 // function to add moive
-/* func AddMovie() gin.HandlersChain {
+func AddMovie(ctx context.Context, in *AddMovieInput) (*AddMovieOutput, error) {
+	if err := validate.Struct(in.Body); err != nil {
+		return nil, huma.Error400BadRequest("validation failed")
+	}
+	col, err := getMovieCol()
+	if err != nil {
+		slog.Error("open movies collection failed", "op", "AddMovie", "err", err)
+		return nil, fmt.Errorf("open movies collection: %w", err)
+	}
+	qctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
 
-	return nil
-} */
+	movie := in.Body
+	movie.ID = bson.NewObjectID()
+
+	if _, err := col.InsertOne(qctx, movie); err != nil {
+
+		return nil, fmt.Errorf("insert movie: %w", err)
+	}
+	return &AddMovieOutput{
+		Status: http.StatusCreated,
+		Body:   movie,
+	}, nil
+
+}
