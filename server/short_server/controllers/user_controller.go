@@ -14,6 +14,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type (
@@ -30,11 +31,22 @@ type (
 	}
 
 	AddUserInput struct {
-		Body model.User
+		Body AddUserRequestBody
 	}
 
 	AddUserOutput struct {
 		Body model.User `json:"body"`
+	}
+	//DTO
+	AddUserRequestBody struct {
+		FirstName       string        `json:"first_name" validate:"required,min=2,max=100"`
+		LastName        string        `json:"last_name" validate:"required,min=2,max=100"`
+		Email           string        `json:"email" validate:"required,email"`
+		Password        string        `json:"password" validate:"required,min=6"`
+		Role            string        `json:"role" validate:"required,oneof=ADMIN USER"`
+		Token           string        `json:"token" bson:"token"`
+		RefreshToken    string        `json:"refresh_token" bson:"refresh_token"`
+		FavouriteGenres []model.Genre `json:"favourite_genres" validate:"required,dive"`
 	}
 )
 
@@ -53,7 +65,7 @@ func RegisterUserRoutes(api huma.API) {
 		Path:          "/users",
 		Summary:       "Add one user",
 		DefaultStatus: http.StatusCreated,
-		Errors:        []int{400, 500},
+		Errors:        []int{400, 409, 500},
 	}, AddUser)
 }
 
@@ -136,19 +148,72 @@ func AddUser(ctx context.Context, in *AddUserInput) (*AddUserOutput, error) {
 	qctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	user := in.Body
-	now := time.Now().UTC()
-	user.ID = bson.NewObjectID()
-	if user.UserID == "" {
-		user.UserID = user.ID.Hex()
+	hashedPassword, err := HashPassword(in.Body.Password)
+	if err != nil {
+		slog.Error("hash password failed", "op", "AddUser", "email", in.Body.Email, "err", err)
+		return nil, huma.Error500InternalServerError("failed to secure user password")
 	}
-	user.CreatedAt = now
-	user.UpdatedAt = now
+
+	user := model.User{
+		FirstName:       in.Body.FirstName,
+		LastName:        in.Body.LastName,
+		Email:           in.Body.Email,
+		Password:        hashedPassword,
+		Role:            in.Body.Role,
+		Token:           in.Body.Token,
+		RefreshToken:    in.Body.RefreshToken,
+		FavouriteGenres: in.Body.FavouriteGenres,
+	}
+	assignUserIdentityAndTimestamps(&user)
 
 	if _, err := col.InsertOne(qctx, user); err != nil {
+		if isDuplicateKeyError(err) {
+			return nil, huma.Error409Conflict("user already registered")
+		}
 		slog.Error("insert user failed", "op", "AddUser", "email", user.Email, "err", err)
 		return nil, fmt.Errorf("insert user: %w", err)
 	}
 
+	// Do not return password hash to clients.
+	user.Password = ""
 	return &AddUserOutput{Body: user}, nil
+}
+
+func assignUserIdentityAndTimestamps(user *model.User) {
+	user.ID = bson.NewObjectID()
+	if user.UserID == "" {
+		user.UserID = user.ID.Hex()
+	}
+	now := time.Now().UTC()
+	user.CreatedAt = now
+	user.UpdatedAt = now
+}
+
+func HashPassword(password string) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+	return string(hash), nil
+}
+
+func isDuplicateKeyError(err error) bool {
+	var writeErr mongo.WriteException
+	if errors.As(err, &writeErr) {
+		for _, e := range writeErr.WriteErrors {
+			if e.Code == 11000 {
+				return true
+			}
+		}
+	}
+
+	var bulkWriteErr mongo.BulkWriteException
+	if errors.As(err, &bulkWriteErr) {
+		for _, e := range bulkWriteErr.WriteErrors {
+			if e.Code == 11000 {
+				return true
+			}
+		}
+	}
+	return false
 }
