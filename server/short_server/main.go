@@ -44,6 +44,7 @@ func main() {
 		return out, nil
 	})
 	controllers.RegisterMovRoutes(api)
+	controllers.RegisterUserRoutes(api)
 	slog.Info("server starting", "addr", ":8080")
 	if err := r.Run(":8080"); err != nil {
 		slog.Error("server failed to start", "err", err)
