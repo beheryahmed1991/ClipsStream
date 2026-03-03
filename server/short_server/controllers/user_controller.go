@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/beheryahmed1991/ClipsStream/server/short_server/database"
@@ -100,15 +101,14 @@ func GetUsers(ctx context.Context, in *struct{}) (*GetUsersOutput, error) {
 }
 
 func GetUser(ctx context.Context, in *GetUserInput) (*GetUserOutput, error) {
+	objID, err := bson.ObjectIDFromHex(in.ID)
+	if err != nil {
+		return nil, huma.Error400BadRequest("invalid user ID")
+	}
 	col, err := getUserCol()
 	if err != nil {
 		slog.Error("open users collection failed", "op", "GetUser", "user_id", in.ID, "err", err)
 		return nil, fmt.Errorf("open users collection: %w", err)
-	}
-
-	objID, err := bson.ObjectIDFromHex(in.ID)
-	if err != nil {
-		return nil, huma.Error400BadRequest("invalid user ID")
 	}
 
 	qctx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -153,11 +153,12 @@ func AddUser(ctx context.Context, in *AddUserInput) (*AddUserOutput, error) {
 		slog.Error("hash password failed", "op", "AddUser", "email", in.Body.Email, "err", err)
 		return nil, huma.Error500InternalServerError("failed to secure user password")
 	}
+	normalizedEmail := strings.ToLower(strings.TrimSpace(in.Body.Email))
 
 	user := model.User{
 		FirstName:       in.Body.FirstName,
 		LastName:        in.Body.LastName,
-		Email:           in.Body.Email,
+		Email:           normalizedEmail,
 		Password:        hashedPassword,
 		Role:            in.Body.Role,
 		Token:           in.Body.Token,

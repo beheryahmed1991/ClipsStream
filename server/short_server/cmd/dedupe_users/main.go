@@ -61,11 +61,9 @@ func removeDuplicateUsers(ctx context.Context, col *mongo.Collection) (int, int,
 		{{Key: "$sort", Value: bson.M{"_id": 1}}},
 		{{Key: "$group", Value: bson.M{
 			"_id":   "$norm_email",
-			"ids":   bson.M{"$push": "$_id"},
 			"count": bson.M{"$sum": 1},
 		}}},
 		{{Key: "$match", Value: bson.M{
-			"_id":   bson.M{"$ne": ""},
 			"count": bson.M{"$gt": 1},
 		}}},
 	}
@@ -122,10 +120,13 @@ func normalizeEmails(ctx context.Context, col *mongo.Collection) error {
 
 func ensureUniqueEmailIndex(ctx context.Context, col *mongo.Collection) error {
 	model := mongo.IndexModel{
-		Keys:    bson.D{{Key: "email", Value: 1}},
-		Options: options.Index().SetName("users_email_unique").SetUnique(true),
-	}
+		Keys: bson.D{{Key: "email", Value: 1}},
+		Options: options.Index().
+			SetName("users_email_unique").
+			SetUnique(true).
+			SetPartialFilterExpression(bson.M{
+				"email": bson.M{"$type": "string", "$ne": ""},
+			})}
 	_, err := col.Indexes().CreateOne(ctx, model)
 	return err
 }
-
