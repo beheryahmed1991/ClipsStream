@@ -44,6 +44,9 @@ var (
 	validate = validator.New()
 )
 
+// RegisterMovRoutes registers HTTP routes for movie-related operations on the provided Huma API.
+// It registers GET /movies, GET /movies/{id} (operation ID "get-movie"), and POST /addmovies (operation ID "add-movie")
+// which uses 201 Created as the default response status.
 func RegisterMovRoutes(api huma.API) {
 	huma.Get(api, "/movies", GetMovies)
 	//huma.Get(api, "/movies/{id}", GetMovie)
@@ -64,10 +67,14 @@ func RegisterMovRoutes(api huma.API) {
 	}, AddMovie)
 }
 
+// getMovieCol returns the MongoDB collection used for storing movies.
+// It returns an error if the collection cannot be opened.
 func getMovieCol() (*mongo.Collection, error) {
 	return database.OpenCollection("movies")
 }
 
+// GetMovies retrieves all movies from the database.
+// It returns a GetMoviesOutput whose Body contains the retrieved movies, or an error if the operation fails.
 func GetMovies(ctx context.Context, in *struct{}) (*GetMoviesOutput, error) {
 	col, err := getMovieCol()
 	if err != nil {
@@ -95,6 +102,12 @@ func GetMovies(ctx context.Context, in *struct{}) (*GetMoviesOutput, error) {
 	return &GetMoviesOutput{Body: movies}, nil
 }
 
+// GetMovie retrieves the movie identified by the provided hex ID from the movies collection.
+// 
+// It returns the movie in a GetMovieOutput on success.
+// If the provided ID is not a valid hex ObjectID, it returns a 400 Bad Request error.
+// If no movie with the given ID exists, it returns a 404 Not Found error.
+// Other failures (collection open or database errors) are returned as wrapped errors.
 func GetMovie(ctx context.Context, in *GetMovieInput) (*GetMovieOutput, error) {
 	col, err := getMovieCol()
 	if err != nil {
@@ -120,7 +133,8 @@ func GetMovie(ctx context.Context, in *GetMovieInput) (*GetMovieOutput, error) {
 	return &GetMovieOutput{Body: movie}, nil
 }
 
-// function to add moive
+// AddMovie validates the provided movie, assigns it a new BSON ObjectID, inserts it into the movies collection, and returns the created movie.
+// If validation fails it returns a 400 Bad Request error with field-specific details. It returns an error if opening the collection or inserting the document fails.
 func AddMovie(ctx context.Context, in *AddMovieInput) (*AddMovieOutput, error) {
 	if err := validate.Struct(in.Body); err != nil {
 		var ve validator.ValidationErrors
