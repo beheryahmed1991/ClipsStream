@@ -19,7 +19,8 @@ type HelloOutput struct {
 	}
 }
 
-// main initializes a Gin router, configures Huma under the /api group with a GET /hello endpoint that returns {"message":"hello"}, and starts the HTTP server on :8080, logging and exiting with status 1 if startup fails.
+// main initializes logging and the HTTP server, registers API routes under /api (including GET /hello which returns {"message":"hello"}), and starts the server on :8080.
+// If the server fails to start, main logs the error and exits with status 1.
 func main() {
 	gin.SetMode(gin.ReleaseMode)
 	// r:=gin.Default()
